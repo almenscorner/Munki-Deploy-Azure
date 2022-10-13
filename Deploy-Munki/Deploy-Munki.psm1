@@ -42,7 +42,7 @@ function Deploy-Munki {
         [Parameter(Mandatory=$True)]
         [string]$resourceGroupName,
 
-        [Parameter(Mandatory=$True)]
+        [Parameter(Mandatory=$False)]
         [string]$automationAccountName,
 
         [Parameter(Mandatory=$False)]
@@ -99,11 +99,13 @@ function Deploy-Munki {
                                                    -AccessTier Hot `
                                                    -resourceGroupName $resourceGroupName `
                                                    -Location $location
-            $context = $storageAccount.Context
+
+            $key = Get-AzStorageAccountKey -ResourceGroupName $resourceGroupName -Name $storageAccountName
+            $context = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $key.Value[0]
 
             # Create munki container and get SAS token
             $munkiContainer = New-AzStorageContainer -Context $context -Name "munki" -Permission Off | `
-                            New-AzStorageContainerSASToken -ExpiryTime $(Get-Date).AddDays(180) -Permission r
+                            New-AzStorageContainerSASToken -ExpiryTime $(Get-Date).AddDays(180) -Permission rl -Protocol HttpsOnly
             # Create public container
             $publicContainer = New-AzStorageContainer -Context $context -Name "public" -Permission Blob
         }
@@ -176,8 +178,7 @@ function Deploy-Munki {
         }
         
         # Create Intune Munki profile with Storage Account URI and escaped SAS token
-        $mobileconfig = "
-<?xml version=""1.0"" encoding=""utf-8""?>
+        $mobileconfig = "<?xml version=""1.0"" encoding=""utf-8""?>
 <!DOCTYPE plist PUBLIC ""-//Apple//DTD PLIST 1.0//EN"" ""http://www.apple.com/DTDs/PropertyList-1.0.dtd"">
 <plist version=""1.0"">
     <dict>
