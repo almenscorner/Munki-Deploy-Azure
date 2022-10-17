@@ -64,7 +64,7 @@ function Deploy-Munki {
 
     # Authenticate to Azure and Graph
     $authAz = Connect-AzAccount
-    $authGraph = Connect-MgGraph
+    $authGraph = Connect-MgGraph -Scopes DeviceManagementConfiguration.ReadWrite.All
 
     # Set name and path variables
     $profileName = "Munki.mobileconfig"
@@ -75,6 +75,7 @@ function Deploy-Munki {
     $templatePath = "$($PSScriptRoot)/$($runbookTemplateName)"
     $templateImportName = "import_py3package_from_pypi.py"
     $templateImportPath = "$($PSScriptRoot)/$($templateImportName)"
+    $runbookName = "macOS-Munki-Manifest-Generator"
 
     # Set URI variables
     $munkiReleasesUri = "https://api.github.com/repos/munki/munki/releases/latest"
@@ -91,6 +92,15 @@ function Deploy-Munki {
 
         try {
             $Location = $(Get-AzResourceGroup -Name $resourceGroupName).Location
+
+            $storageAccounts = $(Get-AzStorageAccount -ResourceGroupName $resourceGroupName).StorageAccountName
+
+            foreach ($storageAccount in $storageAccounts) {
+                if ($storageAccount -eq $storageAccountName) {
+                    Write-Warning "Storage account $($storageAccountName) already exists"
+                    $storageAccountName = Read-Host "Enter a new Storage Account name and press Enter to continue"
+                }
+            }
             
             # Create storage account
             $storageAccount = New-AzStorageAccount -Name $storageAccountName `
@@ -280,6 +290,26 @@ function Deploy-Munki {
     function New-Runbook {
 
         try{
+            $runbooks = $(Get-AzAutomationRunbook -AutomationAccountName $automationAccountName `
+                                                  -ResourceGroupName $resourceGroupName).Name
+
+            foreach ($runbook in $runbooks) {
+                if ($runbook -eq $runbookName) {
+                    Write-Warning "Runbook $($runbookName) already exists"
+                    $overwrite = Read-Host "Do you want to overwrite the existing runbook? (y/n)"
+                }
+            }
+
+            if ($overwrite -eq "y") {
+                Remove-AzAutomationRunbook -AutomationAccountName $automationAccountName `
+                -ResourceGroupName $resourceGroupName `
+                -Name $runbookName
+            }
+            else {
+                Write-Host -ForegroundColor Yellow "Runbook $($runbookName) not overwritten"
+                return
+            }
+
             Write-Host -ForegroundColor Cyan "Getting runbook Munki manifest template"
 
             $getRunbookTemplate = Invoke-WebRequest -Uri $templateRunbookUri `
@@ -291,7 +321,7 @@ function Deploy-Munki {
                                                        -OutFile "$($PSScriptRoot)/$($templateImportName)"
 
             $createRunbook = Import-AzAutomationRunbook -Path $templatePath `
-                                    -Name "macOS-Munki-Manifest-Generator" -AutomationAccountName $automationAccountName `
+                                    -Name $runbookName -AutomationAccountName $automationAccountName `
                                     -ResourceGroupName $resourceGroupName `
                                     -Type Python3
 
