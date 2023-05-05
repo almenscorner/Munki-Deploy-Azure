@@ -4,7 +4,7 @@
 
     .NOTES
     Author: Tobias Almén (almenscorner)
-    Version: 1.0
+    Version: 1.1
 
     .DESCRIPTION
     Running this script, a new Storage Account will be created that hosts the Munki repository as well as Intune profiles,
@@ -341,7 +341,7 @@ function Deploy-Munki {
 
             $subscriptionId = $(Get-AzResourceGroup -Name $resourceGroupName).ResourceId.Split("/")[2]
 
-            $modules = @("Munki-Manifest-Generator", "msrest", "azure-storage-blob", "azure-core", "adal", "typing_extensions")
+            $modules = @("Munki-Manifest-Generator", "msrest", "azure-storage-blob", "azure-core", "msal", "typing_extensions", "retrying")
 
             foreach ($module in $modules) {
                 $params = @{"params" = "-s $($subscriptionId) -g $($resourceGroupName) -a $($automationAccountName) -m $($module)"}
